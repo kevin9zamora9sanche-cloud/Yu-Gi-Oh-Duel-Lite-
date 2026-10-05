@@ -18,8 +18,21 @@ public class BattleEngine {
         new Thread(() -> {
             listener.onLog("=== ¡COMIENZA EL COMBATE! ===");
 
-            Pokemon attacker = (p1.getSpeed() >= p2.getSpeed()) ? p1 : p2;
-            Pokemon defender = (attacker == p1) ? p2 : p1;
+            // REGLA: Si la velocidad es igual, se elige al azar quién inicia
+            Pokemon attacker;
+            Pokemon defender;
+
+            if (p1.getSpeed() > p2.getSpeed()) {
+                attacker = p1;
+                defender = p2;
+            } else if (p2.getSpeed() > p1.getSpeed()) {
+                attacker = p2;
+                defender = p1;
+            } else {
+                // Misma velocidad (e.g. espejo o misma especie): Selección aleatoria de turno 1
+                attacker = (Math.random() < 0.5) ? p1 : p2;
+                defender = (attacker == p1) ? p2 : p1;
+            }
 
             while (!p1.isFainted() && !p2.isFainted()) {
                 try {
@@ -28,6 +41,7 @@ public class BattleEngine {
                     e.printStackTrace();
                 }
 
+                // Cálculo de daño
                 int damage = Math.max(5, attacker.getAttack() - (defender.getDefense() / 2));
 
                 boolean isCritical = Math.random() < 0.15;
@@ -37,10 +51,13 @@ public class BattleEngine {
 
                 defender.setCurrentHp(defender.getCurrentHp() - damage);
 
-                String criticalMsg = isCritical ? " ¡GOLPE CRITICO!" : "";
-                listener.onLog("⚔ " + attacker.getName().toUpperCase() + " ataca a " + defender.getName().toUpperCase() + " causando " + damage + " de daño." + criticalMsg);
-                listener.onHpUpdated(defender.getName(), defender.getCurrentHp(), defender.getMaxHp());
+                String criticalMsg = isCritical ? " ¡GOLPE CRÍTICO!" : "";
+                listener.onLog("⚔ " + attacker.getName().toUpperCase() + " ataca causando " + damage + " de daño." + criticalMsg);
 
+                // Pasamos la referencia del objeto 'defender' para distinguir duplicados
+                listener.onHpUpdated(defender, defender.getCurrentHp(), defender.getMaxHp());
+
+                // Verificación de derrota
                 if (defender.isFainted()) {
                     listener.onLog("\n=========================================");
                     listener.onLog("🏆 ¡EL GANADOR ES " + attacker.getName().toUpperCase() + "!");
@@ -49,6 +66,7 @@ public class BattleEngine {
                     break;
                 }
 
+                // Cambio de turno
                 Pokemon temp = attacker;
                 attacker = defender;
                 defender = temp;

@@ -217,16 +217,16 @@ public class MainFrame extends JFrame implements BattleListener {
      * Recibe la actualización del HP de un Pokémon tras recibir un ataque.
      */
     @Override
-    public void onHpUpdated(String pokemonName, int currentHp, int maxHp) {
+    public void onHpUpdated(Pokemon target, int currentHp, int maxHp) {
         SwingUtilities.invokeLater(() -> {
-            if (pokemon1 != null && pokemon1.getName().equalsIgnoreCase(pokemonName)) {
+            // Comparación por referencia de memoria (==) en lugar de nombre para diferenciar Pokémon idénticos
+            if (target == pokemon1) {
                 actualizarBarra(hpBarP1, pokemon1);
-            } else if (pokemon2 != null && pokemon2.getName().equalsIgnoreCase(pokemonName)) {
+            } else if (target == pokemon2) {
                 actualizarBarra(hpBarP2, pokemon2);
             }
         });
     }
-
     /**
      * Se invoca cuando finaliza el combate para volver a habilitar la interfaz.
      */
