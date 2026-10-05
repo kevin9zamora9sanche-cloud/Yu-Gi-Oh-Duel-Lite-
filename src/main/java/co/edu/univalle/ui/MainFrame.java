@@ -1,234 +1,340 @@
 package co.edu.univalle.ui;
 
-import co.edu.univalle.client.PokeApiClient;
-import co.edu.univalle.logic.Battle;
+// Importaciones del modelo, lógica y cliente de datos
+import co.edu.univalle.client.PokeApiService;
+import co.edu.univalle.logic.BattleEngine;
 import co.edu.univalle.logic.BattleListener;
 import co.edu.univalle.model.Pokemon;
 
+// Importaciones de Swing y AWT para la interfaz gráfica
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.net.URL;
-import java.util.Random;
 
+/**
+ * Ventana principal del simulador "Pokémon Stadium Lite".
+ * Gestiona la interfaz de usuario y reacciona a los eventos del combate mediante BattleListener.
+ */
 public class MainFrame extends JFrame implements BattleListener {
 
-    private final PokeApiClient apiClient = new PokeApiClient();
-    private Pokemon pokemon1;
-    private Pokemon pokemon2;
+    // =========================================================================
+    // ATRIBUTOS DE LA INTERFAZ (Enlazados con el diseñador Swing / MainFrame.form)
+    // =========================================================================
 
-    // Componentes del Jugador 1
-    private final JTextField txtP1 = new JTextField(10);
-    private final JButton btnLoadP1 = new JButton("Load");
-    private final JButton btnRandomP1 = new JButton("Random");
-    private final JLabel lblImageP1 = new JLabel("Sin imagen", SwingConstants.CENTER);
-    private final JLabel lblStatsP1 = new JLabel("Cargue un Pokémon", SwingConstants.CENTER);
-    private final JProgressBar hpBarP1 = new JProgressBar();
+    // Paneles contenedores de la vista
+    private JPanel mainPanel;         // Panel raíz principal
+    private JPanel centerPanel;       // Contenedor de la zona central
+    private JPanel p1CenterPanel;     // Panel visual del Jugador 1
+    private JPanel p2CenterPanel;     // Panel visual del Jugador 2
+    private JPanel bottomPanel;       // Panel inferior para controles y logs
+    private JScrollPane scrollPaneLog; // Scroll para el área de texto de registro
 
-    // Componentes del Jugador 2
-    private final JTextField txtP2 = new JTextField(10);
-    private final JButton btnLoadP2 = new JButton("Load");
-    private final JButton btnRandomP2 = new JButton("Random");
-    private final JLabel lblImageP2 = new JLabel("Sin imagen", SwingConstants.CENTER);
-    private final JLabel lblStatsP2 = new JLabel("Cargue un Pokémon", SwingConstants.CENTER);
-    private final JProgressBar hpBarP2 = new JProgressBar();
+    // Componentes interactivos del Jugador 1
+    private JLabel lblStatsP1;        // Muestra las estadísticas (HP, ATK, DEF, SPD)
+    private JLabel lblImageP1;        // Muestra el sprite/imagen del Pokémon
+    private JProgressBar hpBarP1;     // Barra de vida (HP)
+    private JTextField txtP1;         // Campo de entrada de nombre o ID
+    private JButton btnLoadP1;        // Botón para cargar Pokémon por nombre/ID
+    private JButton btnRandomP1;      // Botón para cargar un Pokémon aleatorio
 
-    // Controles de Combate y Log de Batalla
-    private final JButton btnFight = new JButton("¡Fight!");
-    private final JTextArea txtLog = new JTextArea(12, 50);
+    // Componentes interactivos del Jugador 2
+    private JLabel lblStatsP2;
+    private JLabel lblImageP2;
+    private JProgressBar hpBarP2;
+    private JTextField txtP2;
+    private JButton btnLoadP2;
+    private JButton btnRandomP2;
 
+    // Controles de batalla y registro de sucesos
+    private JButton btnFight;         // Botón para iniciar el combate
+    private JTextArea txtLog;         // Registro textual de los turnos y eventos
+
+    // =========================================================================
+    // SERVICIOS Y OBJETOS DEL DOMINIO
+    // =========================================================================
+    private PokeApiService apiService; // Servicio para consultar la PokéAPI en segundo plano
+    private Pokemon pokemon1;          // Objeto del Pokémon asignado al Jugador 1
+    private Pokemon pokemon2;          // Objeto del Pokémon asignado al Jugador 2
+
+    /**
+     * Constructor principal de la ventana.
+     * Configura el panel contenedor, inicializa el servicio API y enlaza los eventos.
+     */
     public MainFrame() {
-        super("Pokémon Stadium Lite - Univalle");
+        setTitle("Pokémon Stadium Lite - Univalle");
+
+        // Validación de seguridad por si el diseñador visual no inicializa el panel raíz
+        if (mainPanel == null) {
+            mainPanel = new JPanel();
+        }
+        setContentPane(mainPanel);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(850, 650);
-        setLocationRelativeTo(null);
-        setLayout(new BorderLayout(10, 10));
+        pack();                       // Ajusta el tamaño de la ventana al contenido
+        setLocationRelativeTo(null);   // Centra la ventana en la pantalla
 
-        initUI();
+        apiService = new PokeApiService();
+        setupEvents();                 // Registra los escuchadores de eventos
     }
 
-    private void initUI() {
-        // Panel Superior: Selección de Pokémon para J1 y J2
-        JPanel topPanel = new JPanel(new GridLayout(1, 2, 10, 10));
-        topPanel.add(createPlayerControlPanel("Jugador 1", txtP1, btnLoadP1, btnRandomP1, true));
-        topPanel.add(createPlayerControlPanel("Jugador 2", txtP2, btnLoadP2, btnRandomP2, false));
-        add(topPanel, BorderLayout.NORTH);
+    /**
+     * Asigna las acciones (listeners) a los botones de la interfaz.
+     */
+    private void setupEvents() {
+        // Carga manual de Pokémon mediante el texto ingresado
+        btnLoadP1.addActionListener(e -> cargarPokemon1(txtP1.getText()));
+        btnLoadP2.addActionListener(e -> cargarPokemon2(txtP2.getText()));
 
-        // Panel Central: Vista visual de los 2 Pokémon (Sprite, Stats y HP)
-        JPanel centerPanel = new JPanel(new GridLayout(1, 2, 10, 10));
-        centerPanel.add(createPokemonDisplayPanel(lblImageP1, lblStatsP1, hpBarP1));
-        centerPanel.add(createPokemonDisplayPanel(lblImageP2, lblStatsP2, hpBarP2));
-        add(centerPanel, BorderLayout.CENTER);
-
-        // Panel Inferior: Botón de Pelea y Log Desplazable
-        JPanel bottomPanel = new JPanel(new BorderLayout(5, 5));
-        btnFight.setFont(new Font("Arial", Font.BOLD, 18));
-        btnFight.setEnabled(false); // Regla: Deshabilitado hasta que ambos estén cargados
-        btnFight.addActionListener(e -> startBattle());
-        bottomPanel.add(btnFight, BorderLayout.NORTH);
-
-        txtLog.setEditable(false);
-        txtLog.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        JScrollPane scrollLog = new JScrollPane(txtLog);
-        bottomPanel.add(scrollLog, BorderLayout.CENTER);
-
-        add(bottomPanel, BorderLayout.SOUTH);
-    }
-
-    private JPanel createPlayerControlPanel(String title, JTextField txt, JButton btnLoad, JButton btnRandom, boolean isP1) {
-        JPanel panel = new JPanel(new FlowLayout());
-        panel.setBorder(BorderFactory.createTitledBorder(title));
-        panel.add(txt);
-        panel.add(btnLoad);
-        panel.add(btnRandom);
-
-        btnLoad.addActionListener(e -> loadPokemon(txt.getText(), isP1));
-        btnRandom.addActionListener(e -> {
-            int randomId = new Random().nextInt(1010) + 1; // Selecciona un ID entre 1 y 1010
-            loadPokemon(String.valueOf(randomId), isP1);
+        // Carga aleatoria utilizando IDs en el rango de la 1ª a la 8ª generación (1 a 898)
+        btnRandomP1.addActionListener(e -> {
+            int randomId = (int) (Math.random() * 898) + 1;
+            cargarPokemon1(String.valueOf(randomId));
         });
 
-        return panel;
+        btnRandomP2.addActionListener(e -> {
+            int randomId = (int) (Math.random() * 898) + 1;
+            cargarPokemon2(String.valueOf(randomId));
+        });
+
+        // Inicio del combate automático
+        btnFight.addActionListener(e -> {
+            if (pokemon1 != null && pokemon2 != null) {
+                // Deshabilitar controles interactivos durante la pelea para evitar interferencias
+                btnFight.setEnabled(false);
+                btnLoadP1.setEnabled(false);
+                btnRandomP1.setEnabled(false);
+                btnLoadP2.setEnabled(false);
+                btnRandomP2.setEnabled(false);
+
+                txtLog.setText(""); // Limpiar la consola de logs
+
+                // Restablecer la vida de ambos combatientes al máximo antes de iniciar
+                pokemon1.setCurrentHp(pokemon1.getMaxHp());
+                pokemon2.setCurrentHp(pokemon2.getMaxHp());
+                actualizarBarra(hpBarP1, pokemon1);
+                actualizarBarra(hpBarP2, pokemon2);
+
+                // Iniciar el motor de batalla en un hilo separado
+                BattleEngine engine = new BattleEngine(pokemon1, pokemon2, this);
+                engine.startBattle();
+            } else {
+                JOptionPane.showMessageDialog(this, "Cargue ambos Pokémon antes de iniciar la batalla.");
+            }
+        });
     }
 
-    private JPanel createPokemonDisplayPanel(JLabel lblImage, JLabel lblStats, JProgressBar hpBar) {
-        JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.setBorder(BorderFactory.createEtchedBorder());
-
-        lblImage.setPreferredSize(new Dimension(150, 150));
-        hpBar.setStringPainted(true);
-        hpBar.setForeground(new Color(46, 204, 113));
-
-        panel.add(lblStats, BorderLayout.NORTH);
-        panel.add(lblImage, BorderLayout.CENTER);
-        panel.add(hpBar, BorderLayout.SOUTH);
-        return panel;
-    }
-
-    private void loadPokemon(String query, boolean isP1) {
-        if (query == null || query.trim().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Por favor ingrese el nombre o ID de un Pokémon", "Atención", JOptionPane.WARNING_MESSAGE);
-            return;
+    /**
+     * Habilita el botón de combate si ambos combatientes han sido cargados exitosamente.
+     */
+    private void verificarEstadoBotonPelea() {
+        if (pokemon1 != null && pokemon2 != null) {
+            btnFight.setEnabled(true);
         }
-
-        // Uso de SwingWorker para la consulta a la API sin congelar la UI
-        new SwingWorker<Pokemon, Void>() {
-            @Override
-            protected Pokemon doInBackground() throws Exception {
-                return apiClient.consultarPokemon(query);
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    Pokemon pokemon = get();
-                    if (isP1) {
-                        pokemon1 = pokemon;
-                        updatePokemonUI(pokemon1, lblImageP1, lblStatsP1, hpBarP1);
-                    } else {
-                        pokemon2 = pokemon;
-                        updatePokemonUI(pokemon2, lblImageP2, lblStatsP2, hpBarP2);
-                    }
-
-                    // Habilitar el botón de pelea solo si ambos Pokémon están listos
-                    btnFight.setEnabled(pokemon1 != null && pokemon2 != null);
-                    txtLog.append("Cargado correctamente: " + pokemon.getName().toUpperCase() + "\n");
-                } catch (Exception e) {
-                    String mensajeError = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
-                    JOptionPane.showMessageDialog(MainFrame.this, mensajeError, "Error al Cargar", JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        }.execute();
     }
 
-    private void updatePokemonUI(Pokemon p, JLabel lblImage, JLabel lblStats, JProgressBar hpBar) {
-        lblStats.setText("<html><center><b>" + p.getName().toUpperCase() + "</b> (" + p.getPrimaryType().toUpperCase() + ")<br>HP: " + p.getMaxHp() + " | ATK: " + p.getAttack() + " | DEF: " + p.getDefense() + " | SPD: " + p.getSpeed() + "</center></html>");
+    /**
+     * Consulta el Pokémon del Jugador 1 en la API y actualiza la vista.
+     */
+    private void cargarPokemon1(String query) {
+        Pokemon p = apiService.obtenerPokemon(query);
+        if (p != null) {
+            pokemon1 = p;
+            txtP1.setText(p.getName());
+            actualizarUI(pokemon1, lblImageP1, lblStatsP1, hpBarP1);
+            txtLog.append("¡Cargado correctamente: " + p.getName().toUpperCase() + "!\n");
+            verificarEstadoBotonPelea();
+        } else {
+            JOptionPane.showMessageDialog(this, "No se encontró el Pokémon en la PokéAPI.");
+        }
+    }
 
+    /**
+     * Consulta el Pokémon del Jugador 2 en la API y actualiza la vista.
+     */
+    private void cargarPokemon2(String query) {
+        Pokemon p = apiService.obtenerPokemon(query);
+        if (p != null) {
+            pokemon2 = p;
+            txtP2.setText(p.getName());
+            actualizarUI(pokemon2, lblImageP2, lblStatsP2, hpBarP2);
+            txtLog.append("¡Cargado correctamente: " + p.getName().toUpperCase() + "!\n");
+            verificarEstadoBotonPelea();
+        } else {
+            JOptionPane.showMessageDialog(this, "No se encontró el Pokémon en la PokéAPI.");
+        }
+    }
+
+    /**
+     * Actualiza las etiquetas de texto e imagen de un Pokémon en la interfaz.
+     */
+    private void actualizarUI(Pokemon p, JLabel lblImage, JLabel lblStats, JProgressBar hpBar) {
+        // Formatear texto con código HTML para centrar y resaltar datos
+        lblStats.setText("<html><center><b>" + p.getName().toUpperCase() + " (" + p.getPrimaryType().toUpperCase() + ")</b><br>" +
+                "HP: " + p.getMaxHp() + " | ATK: " + p.getAttack() + " | DEF: " + p.getDefense() + " | SPD: " + p.getSpeed() + "</center></html>");
+
+        actualizarBarra(hpBar, p);
+
+        // Descarga y renderizado dinámico de la imagen del sprite desde URL
+        if (p.getSpriteUrl() != null && !p.getSpriteUrl().isEmpty()) {
+            try {
+                URL urlImagen = new URL(p.getSpriteUrl());
+                ImageIcon icono = new ImageIcon(urlImagen);
+                Image image = icono.getImage().getScaledInstance(120, 120, Image.SCALE_SMOOTH);
+                lblImage.setText("");
+                lblImage.setIcon(new ImageIcon(image));
+            } catch (Exception e) {
+                lblImage.setIcon(null);
+                lblImage.setText("Sin imagen");
+            }
+        }
+    }
+
+    /**
+     * Configura y actualiza el valor visual de la barra de vida (JProgressBar).
+     */
+    private void actualizarBarra(JProgressBar hpBar, Pokemon p) {
         hpBar.setMaximum(p.getMaxHp());
         hpBar.setValue(p.getCurrentHp());
+        hpBar.setStringPainted(true);
         hpBar.setString(p.getCurrentHp() + " / " + p.getMaxHp() + " HP");
-
-        // Cargar imagen de forma asíncrona (utilizando la lógica revisada en clase)
-        if (p.getSpriteUrl() != null && !p.getSpriteUrl().isEmpty()) {
-            new SwingWorker<ImageIcon, Void>() {
-                @Override
-                protected ImageIcon doInBackground() throws Exception {
-                    URL url = new URL(p.getSpriteUrl());
-                    ImageIcon icon = new ImageIcon(url);
-                    Image scaled = icon.getImage().getScaledInstance(120, 120, Image.SCALE_SMOOTH);
-                    return new ImageIcon(scaled);
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        lblImage.setText("");
-                        lblImage.setIcon(get());
-                    } catch (Exception e) {
-                        lblImage.setIcon(null);
-                        lblImage.setText("Sin imagen");
-                    }
-                }
-            }.execute();
-        }
+        hpBar.setForeground(new Color(46, 204, 113)); // Color verde
     }
 
-    private void startBattle() {
-        btnFight.setEnabled(false);
-        btnLoadP1.setEnabled(false);
-        btnRandomP1.setEnabled(false);
-        btnLoadP2.setEnabled(false);
-        btnRandomP2.setEnabled(false);
+    // =========================================================================
+    // MÉTODOS DE LA INTERFAZ BattleListener (Sincronización de hilos con AWT/Swing)
+    // =========================================================================
 
-        txtLog.setText("=== ¡COMIENZA EL COMBATE! ===\n");
-        Battle battle = new Battle(pokemon1, pokemon2, this);
-        battle.startBattle();
-    }
-
-    // --- IMPLEMENTACIÓN DE LOS EVENTOS DE BATTLE LISTENER ---
-
+    /**
+     * Recibe los mensajes del motor de batalla e imprime en la consola de texto.
+     */
     @Override
-    public void onTurn(String attacker, String defender, int damage, boolean critical, double modifier) {
-        SwingUtilities.invokeLater(() -> {
-            StringBuilder sb = new StringBuilder();
-            sb.append("⚔️ ").append(attacker.toUpperCase()).append(" ataca a ").append(defender.toUpperCase());
-            sb.append(" causando ").append(damage).append(" de daño.");
-            if (critical) sb.append(" ¡GOLPE CRÍTICO!");
-            if (modifier > 1.0) sb.append(" ¡Es muy efectivo!");
-            if (modifier < 1.0) sb.append(" No es muy efectivo...");
-            sb.append("\n");
-
-            txtLog.append(sb.toString());
-        });
+    public void onLog(String message) {
+        // SwingUtilities.invokeLater garantiza que los cambios a la UI se ejecuten en el Event Dispatch Thread (EDT)
+        SwingUtilities.invokeLater(() -> txtLog.append(message + "\n"));
     }
 
+    /**
+     * Recibe la actualización del HP de un Pokémon tras recibir un ataque.
+     */
     @Override
-    public void onHpChanged(String pokemonName, int hpActual) {
+    public void onHpUpdated(String pokemonName, int currentHp, int maxHp) {
         SwingUtilities.invokeLater(() -> {
             if (pokemon1 != null && pokemon1.getName().equalsIgnoreCase(pokemonName)) {
-                hpBarP1.setValue(hpActual);
-                hpBarP1.setString(hpActual + " / " + pokemon1.getMaxHp() + " HP");
+                actualizarBarra(hpBarP1, pokemon1);
             } else if (pokemon2 != null && pokemon2.getName().equalsIgnoreCase(pokemonName)) {
-                hpBarP2.setValue(hpActual);
-                hpBarP2.setString(hpActual + " / " + pokemon2.getMaxHp() + " HP");
+                actualizarBarra(hpBarP2, pokemon2);
             }
         });
     }
 
+    /**
+     * Se invoca cuando finaliza el combate para volver a habilitar la interfaz.
+     */
     @Override
     public void onBattleEnded(String winnerName) {
         SwingUtilities.invokeLater(() -> {
-            txtLog.append("\n=========================================\n");
-            txtLog.append("🏆 ¡EL GANADOR ES " + winnerName.toUpperCase() + "! 🎉\n");
-            txtLog.append("=========================================\n");
-
             btnLoadP1.setEnabled(true);
             btnRandomP1.setEnabled(true);
             btnLoadP2.setEnabled(true);
             btnRandomP2.setEnabled(true);
+            btnFight.setEnabled(true);
         });
     }
 
+    /**
+     * Punto de entrada de la aplicación.
+     */
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
+        SwingUtilities.invokeLater(() -> {
+            MainFrame frame = new MainFrame();
+            frame.setVisible(true);
+        });
+    }
+
+    {
+// GUI initializer generated by IntelliJ IDEA GUI Designer
+// >>> IMPORTANT!! <<<
+// DO NOT EDIT OR ADD ANY CODE HERE!
+        $$$setupUI$$$();
+    }
+
+    /**
+     * Method generated by IntelliJ IDEA GUI Designer
+     * >>> IMPORTANT!! <<<
+     * DO NOT edit this method OR call it in your code!
+     *
+     * @noinspection ALL
+     */
+    private void $$$setupUI$$$() {
+        mainPanel = new JPanel();
+        mainPanel.setLayout(new com.intellij.uiDesigner.core.GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        mainPanel.setEnabled(false);
+        mainPanel.setMinimumSize(new Dimension(800, 600));
+        mainPanel.setPreferredSize(new Dimension(800, 600));
+        centerPanel = new JPanel();
+        centerPanel.setLayout(new com.intellij.uiDesigner.core.GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        centerPanel.setEnabled(false);
+        mainPanel.add(centerPanel, new com.intellij.uiDesigner.core.GridConstraints(0, 0, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_BOTH, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_SHRINK | com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_SHRINK | com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        p1CenterPanel = new JPanel();
+        p1CenterPanel.setLayout(new com.intellij.uiDesigner.core.GridLayoutManager(4, 4, new Insets(0, 0, 0, 0), -1, -1));
+        p1CenterPanel.setEnabled(false);
+        centerPanel.add(p1CenterPanel, new com.intellij.uiDesigner.core.GridConstraints(0, 0, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_BOTH, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_SHRINK | com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, 1, null, null, null, 0, false));
+        p1CenterPanel.setBorder(BorderFactory.createTitledBorder(null, "Jugador 1", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        lblStatsP1 = new JLabel();
+        lblStatsP1.setText("Cargue un Pokémon");
+        p1CenterPanel.add(lblStatsP1, new com.intellij.uiDesigner.core.GridConstraints(1, 0, 1, 4, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_NONE, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_FIXED, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        lblImageP1 = new JLabel();
+        lblImageP1.setText("Sin imagen");
+        p1CenterPanel.add(lblImageP1, new com.intellij.uiDesigner.core.GridConstraints(2, 0, 1, 4, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_NONE, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        hpBarP1 = new JProgressBar();
+        p1CenterPanel.add(hpBarP1, new com.intellij.uiDesigner.core.GridConstraints(3, 0, 1, 4, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_WANT_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        txtP1 = new JTextField();
+        p1CenterPanel.add(txtP1, new com.intellij.uiDesigner.core.GridConstraints(0, 0, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_NORTHWEST, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_SHRINK | com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, new Dimension(150, -1), null, 0, false));
+        btnLoadP1 = new JButton();
+        btnLoadP1.setText("Load");
+        p1CenterPanel.add(btnLoadP1, new com.intellij.uiDesigner.core.GridConstraints(0, 1, 1, 2, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_NORTH, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, 1, 1, null, null, null, 0, false));
+        btnRandomP1 = new JButton();
+        btnRandomP1.setText("Random");
+        p1CenterPanel.add(btnRandomP1, new com.intellij.uiDesigner.core.GridConstraints(0, 3, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_NORTH, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, 1, 1, null, null, null, 0, false));
+        p2CenterPanel = new JPanel();
+        p2CenterPanel.setLayout(new com.intellij.uiDesigner.core.GridLayoutManager(4, 3, new Insets(0, 0, 0, 0), -1, -1));
+        centerPanel.add(p2CenterPanel, new com.intellij.uiDesigner.core.GridConstraints(0, 1, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_BOTH, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_SHRINK | com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_SHRINK | com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        p2CenterPanel.setBorder(BorderFactory.createTitledBorder(null, "Jugador 2", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        lblStatsP2 = new JLabel();
+        lblStatsP2.setText("Cargue un Pokémon");
+        p2CenterPanel.add(lblStatsP2, new com.intellij.uiDesigner.core.GridConstraints(1, 0, 1, 3, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_NONE, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_FIXED, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        lblImageP2 = new JLabel();
+        lblImageP2.setText("Sin imagen");
+        p2CenterPanel.add(lblImageP2, new com.intellij.uiDesigner.core.GridConstraints(2, 0, 1, 3, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_NONE, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        hpBarP2 = new JProgressBar();
+        p2CenterPanel.add(hpBarP2, new com.intellij.uiDesigner.core.GridConstraints(3, 0, 1, 3, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_WANT_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        txtP2 = new JTextField();
+        p2CenterPanel.add(txtP2, new com.intellij.uiDesigner.core.GridConstraints(0, 0, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_NORTHWEST, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_SHRINK | com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, new Dimension(150, -1), null, 0, false));
+        btnLoadP2 = new JButton();
+        btnLoadP2.setText("Load");
+        p2CenterPanel.add(btnLoadP2, new com.intellij.uiDesigner.core.GridConstraints(0, 1, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_NORTH, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, 1, 1, null, null, null, 0, false));
+        btnRandomP2 = new JButton();
+        btnRandomP2.setText("Random");
+        p2CenterPanel.add(btnRandomP2, new com.intellij.uiDesigner.core.GridConstraints(0, 2, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_NORTH, com.intellij.uiDesigner.core.GridConstraints.FILL_HORIZONTAL, 1, 1, null, null, null, 0, false));
+        bottomPanel = new JPanel();
+        bottomPanel.setLayout(new BorderLayout(0, 0));
+        mainPanel.add(bottomPanel, new com.intellij.uiDesigner.core.GridConstraints(1, 0, 1, 1, com.intellij.uiDesigner.core.GridConstraints.ANCHOR_CENTER, com.intellij.uiDesigner.core.GridConstraints.FILL_BOTH, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_SHRINK | com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_SHRINK | com.intellij.uiDesigner.core.GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        btnFight = new JButton();
+        btnFight.setEnabled(false);
+        btnFight.setText("¡Fight!");
+        bottomPanel.add(btnFight, BorderLayout.NORTH);
+        scrollPaneLog = new JScrollPane();
+        bottomPanel.add(scrollPaneLog, BorderLayout.CENTER);
+        txtLog = new JTextArea();
+        txtLog.setEditable(false);
+        txtLog.setEnabled(false);
+        scrollPaneLog.setViewportView(txtLog);
+    }
+
+    /**
+     * @noinspection ALL
+     */
+    public JComponent $$$getRootComponent$$$() {
+        return mainPanel;
     }
 }
