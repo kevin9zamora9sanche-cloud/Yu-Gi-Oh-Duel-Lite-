@@ -15,7 +15,6 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <dependencies>
-        <!-- Libreria org.json usada en clase -->
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>

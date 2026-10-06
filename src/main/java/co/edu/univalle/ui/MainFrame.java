@@ -241,9 +241,7 @@ public class MainFrame extends JFrame implements BattleListener {
         });
     }
 
-    /**
-     * Punto de entrada de la aplicación.
-     */
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             MainFrame frame = new MainFrame();

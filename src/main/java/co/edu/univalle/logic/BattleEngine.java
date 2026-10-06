@@ -2,12 +2,30 @@ package co.edu.univalle.logic;
 
 import co.edu.univalle.model.Pokemon;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
+
 public class BattleEngine {
 
     private Pokemon p1;
     private Pokemon p2;
     private BattleListener listener;
 
+    private static final double CRIT_CHANCE = 0.10;
+    private static final double CRIT_MULTIPLIER = 1.5;
+
+    private Random random = new Random();
+
+    // Efectividad simple: clave = "tipoAtacante-tipoDefensor". Lo que no esté aquí vale 1.0.
+    private static final Map<String, Double> EFFECTIVENESS = Map.of(
+            "water-fire", 1.3,
+            "fire-grass", 1.3,
+            "grass-water", 1.3,
+            "fire-water", 0.7,
+            "grass-fire", 0.7,
+            "water-grass", 0.7
+    );
     public BattleEngine(Pokemon p1, Pokemon p2, BattleListener listener) {
         this.p1 = p1;
         this.p2 = p2;
@@ -42,12 +60,9 @@ public class BattleEngine {
                 }
 
                 // Cálculo de daño
-                int damage = Math.max(5, attacker.getAttack() - (defender.getDefense() / 2));
-
-                boolean isCritical = Math.random() < 0.15;
-                if (isCritical) {
-                    damage = (int)(damage * 1.5);
-                }
+                boolean isCritical = random.nextDouble() < CRIT_CHANCE;
+                double effectiviness = calcEffectiveness(attacker.getPrimaryType(), defender.getPrimaryType());
+                int damage = calcDamage(attacker, defender, isCritical, effectiviness);
 
                 defender.setCurrentHp(defender.getCurrentHp() - damage);
 
@@ -72,5 +87,27 @@ public class BattleEngine {
                 defender = temp;
             }
         }).start();
+    }
+
+    private int calcDamage(Pokemon attacker, Pokemon defender, boolean isCritic, double effectiveness)
+    {
+        int attackerDamage = attacker.getAttack();
+        int defenderDefense = defender.getDefense();
+
+        // base: ATK * (ATK / (ATK + DEF))
+        double damage = attackerDamage * ( (double) attackerDamage / (attackerDamage + defenderDefense));
+
+        // base * variación(0.85 a 1.0) * critico * efectividad
+        damage *= 0.85 + random.nextDouble() * 0.15;
+        damage *= isCritic ? CRIT_MULTIPLIER : 1.0;
+        damage *= effectiveness;
+
+        // Se redondea a entero minimo es 1
+        return Math.max(1, (int) damage);
+    }
+
+    private double calcEffectiveness(String attackerType, String defenderType)
+    {
+        return EFFECTIVENESS.getOrDefault(attackerType + "-" + defenderType, 1.0);
     }
 }
