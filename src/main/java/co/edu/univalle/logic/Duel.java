@@ -37,8 +37,8 @@ public class Duel {
         Card aiCard = aiDeck.get(aiCardIndex);
 
         listener.onLog("\n--- RONDAS " + (roundsPlayed + 1) + " ---");
-        listener.onLog("Tú jugaste: " + playerCard.getName() + " [ATK: " + playerCard.getAtk() + " | DEF: " + playerCard.getDef() + "]");
-        listener.onLog("La Máquina jugó: " + aiCard.getName() + " [ATK: " + aiCard.getAtk() + " | DEF: " + aiCard.getDef() + "]");
+        listener.onLog("Tú jugaste: " + playerCard.getNombre() + " [ATK: " + playerCard.getAtk() + " | DEF: " + playerCard.getDef() + "]");
+        listener.onLog("La Máquina jugó: " + aiCard.getNombre() + " [ATK: " + aiCard.getAtk() + " | DEF: " + aiCard.getDef() + "]");
 
         String roundWinner;
 
@@ -70,7 +70,7 @@ public class Duel {
         roundsPlayed++;
 
         // Notificar eventos a la interfaz
-        listener.onTurn(playerCard.getName(), aiCard.getName(), roundWinner);
+        listener.onTurn(playerCard.getNombre(), aiCard.getNombre(), roundWinner);
         listener.onScoreChanged(playerScore, aiScore);
 
         // Verificar condición de victoria (Primero a 2 victorias o término de 3 rondas)

@@ -6,7 +6,6 @@ import co.edu.univalle.logic.Duel;
 import co.edu.univalle.model.Card;
 
 import javax.swing.*;
-import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.net.URL;
 import java.util.ArrayList;
@@ -14,21 +13,33 @@ import java.util.List;
 
 public class MainFrame extends JFrame implements BattleListener {
 
+    // Componentes vinculados con el .form
     private JPanel mainPanel;
-    private JPanel cardsPanel;
+    private JPanel topPanel;
+    private JPanel centerPanel;
     private JPanel p1Panel;
-    private JPanel aiPanel;
-
-    private JLabel[] lblPlayerCardImages = new JLabel[3];
-    private JLabel[] lblPlayerCardStats = new JLabel[3];
-    private JButton[] btnSelectCards = new JButton[3];
-
-    private JLabel[] lblAiCardImages = new JLabel[3];
-    private JLabel[] lblAiCardStats = new JLabel[3];
-
+    private JPanel p2Panel;
+    private JPanel bottomPanel;
     private JLabel lblScore;
     private JButton btnStartDuel;
     private JTextArea txtLog;
+
+    // Componentes del Jugador 1 (enlazados uno a uno desde el form)
+    private JLabel lblPlayerStats1, lblPlayerStats2, lblPlayerStats3;
+    private JLabel lblPlayerImg1, lblPlayerImg2, lblPlayerImg3;
+    private JButton btnPlay1, btnPlay2, btnPlay3;
+
+    // Componentes de la Máquina (enlazados uno a uno desde el form)
+    private JLabel lblAiStats1, lblAiStats2, lblAiStats3;
+    private JLabel lblAiImg1, lblAiImg2, lblAiImg3;
+
+    // Estructuras auxiliares en código
+    private JLabel[] playerStatsLabels;
+    private JLabel[] playerImgLabels;
+    private JButton[] playerButtons;
+
+    private JLabel[] aiStatsLabels;
+    private JLabel[] aiImgLabels;
 
     private YgoApiClient apiClient;
     private List<Card> playerDeck = new ArrayList<>();
@@ -37,82 +48,37 @@ public class MainFrame extends JFrame implements BattleListener {
 
     public MainFrame() {
         setTitle("Yu-Gi-Oh! Duel Lite - Univalle");
+        setContentPane(mainPanel);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1000, 700);
+        pack();
         setLocationRelativeTo(null);
 
         apiClient = new YgoApiClient();
-        initCustomUI();
+
+        // Agrupar referencias en arreglos para iterar fácilmente
+        playerStatsLabels = new JLabel[]{lblPlayerStats1, lblPlayerStats2, lblPlayerStats3};
+        playerImgLabels = new JLabel[]{lblPlayerImg1, lblPlayerImg2, lblPlayerImg3};
+        playerButtons = new JButton[]{btnPlay1, btnPlay2, btnPlay3};
+
+        aiStatsLabels = new JLabel[]{lblAiStats1, lblAiStats2, lblAiStats3};
+        aiImgLabels = new JLabel[]{lblAiImg1, lblAiImg2, lblAiImg3};
+
+        setupEvents();
         cargarMazoInicial();
     }
 
-    private void initCustomUI() {
-        mainPanel = new JPanel(new BorderLayout(10, 10));
-
-        // Panel de marcadores y control
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
-        lblScore = new JLabel("Puntaje: Jugador 0 - 0 Máquina");
-        lblScore.setFont(new Font("SansSerif", Font.BOLD, 16));
-        btnStartDuel = new JButton("Cargar / Iniciar Duelo");
+    private void setupEvents() {
         btnStartDuel.addActionListener(e -> cargarMazoInicial());
-        topPanel.add(lblScore);
-        topPanel.add(btnStartDuel);
-
-        // Centro: Cartas
-        cardsPanel = new JPanel(new GridLayout(1, 2, 10, 10));
-
-        // Panel Jugador
-        p1Panel = new JPanel(new GridLayout(1, 3, 5, 5));
-        p1Panel.setBorder(BorderFactory.createTitledBorder(null, "Tus Cartas", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("SansSerif", Font.BOLD, 14)));
 
         for (int i = 0; i < 3; i++) {
-            JPanel cardContainer = new JPanel(new BorderLayout(5, 5));
-            lblPlayerCardStats[i] = new JLabel("Cargando...", SwingConstants.CENTER);
-            lblPlayerCardImages[i] = new JLabel("Sin imagen", SwingConstants.CENTER);
-            btnSelectCards[i] = new JButton("Jugar Carta");
-            btnSelectCards[i].setEnabled(false);
-
             int index = i;
-            btnSelectCards[i].addActionListener(e -> {
-                btnSelectCards[index].setEnabled(false);
+            playerButtons[i].addActionListener(e -> {
+                playerButtons[index].setEnabled(false);
                 if (duel != null) {
                     duel.playTurn(index);
                 }
             });
-
-            cardContainer.add(lblPlayerCardStats[i], BorderLayout.NORTH);
-            cardContainer.add(lblPlayerCardImages[i], BorderLayout.CENTER);
-            cardContainer.add(btnSelectCards[i], BorderLayout.SOUTH);
-            p1Panel.add(cardContainer);
         }
-
-        // Panel Máquina
-        aiPanel = new JPanel(new GridLayout(1, 3, 5, 5));
-        aiPanel.setBorder(BorderFactory.createTitledBorder(null, "Cartas de la Máquina", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("SansSerif", Font.BOLD, 14)));
-
-        for (int i = 0; i < 3; i++) {
-            JPanel cardContainer = new JPanel(new BorderLayout(5, 5));
-            lblAiCardStats[i] = new JLabel("Oculto", SwingConstants.CENTER);
-            lblAiCardImages[i] = new JLabel("🎴 Oculta", SwingConstants.CENTER);
-
-            cardContainer.add(lblAiCardStats[i], BorderLayout.NORTH);
-            cardContainer.add(lblAiCardImages[i], BorderLayout.CENTER);
-            aiPanel.add(cardContainer);
-        }
-
-        cardsPanel.add(p1Panel);
-        cardsPanel.add(aiPanel);
-
-        // Parte inferior: Log de eventos
-        txtLog = new JTextArea(8, 80);
-        txtLog.setEditable(false);
-        JScrollPane scrollLog = new JScrollPane(txtLog);
-
-        mainPanel.add(topPanel, BorderLayout.NORTH);
-        mainPanel.add(cardsPanel, BorderLayout.CENTER);
-        mainPanel.add(scrollLog, BorderLayout.SOUTH);
-
-        setContentPane(mainPanel);
     }
 
     private void cargarMazoInicial() {
@@ -120,17 +86,16 @@ public class MainFrame extends JFrame implements BattleListener {
         txtLog.setText("Obteniendo cartas Monster desde YGOProDeck API...\n");
 
         for (int i = 0; i < 3; i++) {
-            btnSelectCards[i].setEnabled(false);
-            lblPlayerCardStats[i].setText("Cargando...");
-            lblPlayerCardImages[i].setIcon(null);
-            lblPlayerCardImages[i].setText("Cargando...");
+            playerButtons[i].setEnabled(false);
+            playerStatsLabels[i].setText("Cargando...");
+            playerImgLabels[i].setIcon(null);
+            playerImgLabels[i].setText("Cargando...");
 
-            lblAiCardStats[i].setText("Oculto");
-            lblAiCardImages[i].setIcon(null);
-            lblAiCardImages[i].setText("🎴 Oculta");
+            aiStatsLabels[i].setText("Oculto");
+            aiImgLabels[i].setIcon(null);
+            aiImgLabels[i].setText("🎴 Oculta");
         }
 
-        // Hilo en segundo plano para no congelar la UI
         new Thread(() -> {
             playerDeck.clear();
             aiDeck.clear();
@@ -147,9 +112,9 @@ public class MainFrame extends JFrame implements BattleListener {
                 if (playerDeck.size() == 3 && aiDeck.size() == 3) {
                     for (int i = 0; i < 3; i++) {
                         mostrarCartaJugador(i, playerDeck.get(i));
-                        btnSelectCards[i].setEnabled(true);
+                        playerButtons[i].setEnabled(true);
                     }
-                    txtLog.append("¡Cartas cargadas con éxito! Elige una carta para iniciar.\n");
+                    txtLog.append("¡Cartas cargadas con éxito! Elige una carta para jugar la ronda.\n");
                     lblScore.setText("Puntaje: Jugador 0 - 0 Máquina");
                     duel = new Duel(playerDeck, aiDeck, this);
                 } else {
@@ -162,18 +127,18 @@ public class MainFrame extends JFrame implements BattleListener {
     }
 
     private void mostrarCartaJugador(int index, Card card) {
-        lblPlayerCardStats[index].setText("<html><center><b>" + card.getName() + "</b><br>ATK: " + card.getAtk() + " | DEF: " + card.getDef() + "</center></html>");
+        playerStatsLabels[index].setText("<html><center><b>" + card.getNombre() + "</b><br>ATK: " + card.getAtk() + " | DEF: " + card.getDef() + "</center></html>");
         new Thread(() -> {
             try {
                 URL url = new URL(card.getImageUrl());
                 ImageIcon icon = new ImageIcon(url);
                 Image img = icon.getImage().getScaledInstance(100, 140, Image.SCALE_SMOOTH);
                 SwingUtilities.invokeLater(() -> {
-                    lblPlayerCardImages[index].setText("");
-                    lblPlayerCardImages[index].setIcon(new ImageIcon(img));
+                    playerImgLabels[index].setText("");
+                    playerImgLabels[index].setIcon(new ImageIcon(img));
                 });
             } catch (Exception e) {
-                SwingUtilities.invokeLater(() -> lblPlayerCardImages[index].setText("Sin imagen"));
+                SwingUtilities.invokeLater(() -> playerImgLabels[index].setText("Sin imagen"));
             }
         }).start();
     }
@@ -185,7 +150,6 @@ public class MainFrame extends JFrame implements BattleListener {
 
     @Override
     public void onTurn(String playerCard, String aiCard, String winner) {
-        // Notificación opcional de turno
     }
 
     @Override
@@ -196,7 +160,7 @@ public class MainFrame extends JFrame implements BattleListener {
     @Override
     public void onDuelEnded(String winner) {
         SwingUtilities.invokeLater(() -> {
-            for (JButton btn : btnSelectCards) {
+            for (JButton btn : playerButtons) {
                 btn.setEnabled(false);
             }
         });
@@ -205,4 +169,5 @@ public class MainFrame extends JFrame implements BattleListener {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
     }
+
 }

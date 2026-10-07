@@ -1,56 +1,68 @@
-# Pokémon Stadium Lite
+# Yu-Gi-Oh! Duel Lite
 
-Proyecto desarrollado para el laboratorio de repaso de la materia **Desarrollo de Software III** (Universidad del Valle, Sede Tuluá).
+Proyecto desarrollado para el **Laboratorio #1** de la materia **Desarrollo de Software III** (Universidad del Valle, Sede Tuluá). Docente: Mg(c). Juan Pablo Pinillos Reina.
+
+Mini-aplicación de escritorio en **Java Swing** que simula un duelo sencillo de Yu-Gi-Oh! entre un jugador y la máquina, usando cartas Monster obtenidas en vivo desde la API [YGOProDeck](https://ygoprodeck.com/api-guide/).
 
 ## Integrantes
-| Nombres | Código |
-|---------|---------|
+
+| Nombres                        | Código  |
+|--------------------------------|---------|
 | Andrés Felipe Velasquez Moreno | 2459534 |
-| Alexander Zamora Sánchez | 2559731 | 
+| Alexander Zamora Sánchez       | 2559731 |
 
 ## Descripción del Diseño
-La aplicación sigue una arquitectura por capas (client, model, logic, ui) basada en la Programación Orientada a Objetos (POO):
-* **`co.edu.univalle.model.Pokemon`**: Clase modelo que encapsula los atributos (HP, Atk, Def, Speed, Tipo, Sprite) y métodos de estado del Pokémon.
-* **`co.edu.univalle.client.PokeApiClient`**: Encargado de realizar las peticiones HTTP asíncronas a [PokeAPI](https://pokeapi.co/) mediante `java.net.http.HttpClient` y parsear los datos requeridos utilizando `org.json`.
-* **`co.edu.univalle.logic.Battle` y `BattleListener`**: Módulo que gestiona la lógica de combate por turnos en un hilo secundario y notifica los eventos a la UI mediante una interfaz listener personalizada (`onTurn`, `onHpChanged`, `onBattleEnded`).
-* **`co.edu.univalle.ui.MainFrame`**: Interfaz gráfica en Swing que implementa `SwingWorker` para evitar bloqueos del hilo principal de la interfaz (`EDT`) durante peticiones de red y renderizado de imágenes.
 
-## Reglas y Fórmula de Daño
+La aplicación sigue una arquitectura por capas (`client`, `model`, `logic`, `ui`) basada en la Programación Orientada a Objetos (POO), con responsabilidades separadas:
 
-1. **Orden de turnos:** inicia el Pokémon con mayor `Speed`; si empatan, el inicio es aleatorio. Después los turnos se alternan.
-2. **Fórmula de daño:**
+* **`co.edu.univalle.model.Card`**: Clase modelo que encapsula los atributos de la carta (nombre, ATK, DEF, URL de la imagen).
+* **`co.edu.univalle.client.YgoApiClient`**: Realiza las peticiones HTTP a `https://db.ygoprodeck.com/api/v7/randomcard.php` mediante `java.net.http.HttpClient` y parsea el JSON con `org.json`. Valida que la carta obtenida sea de tipo *Monster*; si no lo es, vuelve a solicitar otra.
+* **`co.edu.univalle.logic.Duel` y `BattleListener`**: `Duel` contiene las reglas y la lógica del enfrentamiento (turnos, comparación de stats y puntaje). Notifica a la UI mediante la interfaz `BattleListener` (`onTurn`, `onScoreChanged`, `onDuelEnded`), lo que desacopla la lógica de la interfaz.
+* **`co.edu.univalle.ui.MainFrame`**: Interfaz gráfica en Swing. Usa `ActionListener` en los botones **Iniciar duelo** y **Elegir carta**, y `SwingWorker` para cargar cartas e imágenes sin bloquear el hilo de la interfaz (`EDT`). Incluye un log de batalla desplazable (`JTextArea` + `JScrollPane`).
 
-   $$\text{daño} = \max\left(1,\ \operatorname{round}\left(ATK \cdot \frac{ATK}{ATK + DEF} \cdot v \cdot c \cdot e\right)\right)$$
+### Validaciones y manejo de errores
 
-   Donde:
-   * $v$: Es un número random entre 0.85 y 1.0.
-   * $c$: **golpe crítico**, vale $1.5$ con 10 % de probabilidad y $1.0$ en el resto.
-   * $e$: **efectividad** según el primer tipo del atacante contra el primer tipo del defensor: $1.3$ si Agua > Fuego, Fuego > Planta o Planta > Agua; $0.7$ en la dirección inversa; $1.0$ en cualquier otro caso.
-3. **Límite de vida:** el HP nunca baja de 0.
-4. **Daño mínimo:** todo golpe hace al menos 1 de daño, para que el combate siempre termine.
-5. **Redondeo:** el daño se redondea una sola vez, al final, y ese mismo entero se descuenta, se notifica y se registra en el log.
+* El duelo **no inicia** hasta que el jugador y la máquina tengan sus 3 cartas cargadas.
+* Los errores se muestran de forma visible al usuario (por ejemplo, "No se pudo cargar la carta" o "Error de red").
+* Ninguna petición de red ni carga de imágenes se ejecuta en el EDT.
 
-### ¿Por qué esta fórmula y no otra?
+## Reglas del Duelo
 
-La primera versión era:
+1. **Mazo inicial:** el jugador y la máquina reciben **3 cartas Monster** aleatorias, mostradas con imagen, nombre, ATK y DEF.
+2. **Turno inicial:** se define de forma aleatoria.
+3. **Cada ronda:**
+   * El jugador elige una de sus cartas disponibles.
+   * La máquina elige una al azar entre las suyas.
+   * Se comparan los stats según la posición de cada carta:
 
-$$\text{daño} = (ATK \cdot rand(0,1) - DEF \cdot rand(0,1)) \cdot c \cdot e$$
+   | Situación | Resultado |
+      |---|---|
+   | Ambas en ataque | Gana la carta con mayor **ATK** |
+   | Una en ataque y otra en defensa | Se compara el **ATK** del atacante contra la **DEF** del defensor |
 
-Tenía dos problemas:
-
-* **Resultados muy dispares:** usaba dos números aleatorios independientes, uno para el ataque y otro para la defensa. Un ATK con un random bajo contra una DEF con un random alto daba un golpe casi nulo, sin relación con los stats reales.
-* **Defensores inmortales:** al ser una resta, un defensor con DEF alta dejaba el daño en el mínimo casi siempre, y el combate podía alargarse demasiado.
-
-La fórmula actual usa una **proporción** en lugar de una resta: $\frac{ATK}{ATK + DEF}$ es la fracción del ataque que atraviesa la defensa. Así la defensa reduce el daño sin anularlo, un mayor ATK siempre pega más fuerte, y la aleatoriedad queda limitada a una variación pequeña (85 %–100 %).
-
-| Caso | ATK | DEF | Daño base aprox. |
-|---|---|---|---|
-| Parejos | 80 | 80 | 40 |
-| Atacante fuerte vs. defensor débil | 130 | 50 | 94 |
-| Atacante débil vs. defensor muy resistente | 50 | 230 | 9 |
+   <!-- Aclarar aquí cómo se determina la posición (aleatoria, elegida por el jugador, según el turno, etc.) y cómo se resuelven los empates -->
+4. **Puntaje:** el ganador de la ronda obtiene **1 punto**.
+5. **Fin del duelo:** el primero en ganar **2 de 3 rondas** es el vencedor, y se anuncia en pantalla.
+6. **Log de batalla:** registra quién jugó qué carta, el resultado de cada turno y el puntaje acumulado.
 
 ## Instrucciones de Ejecución
+
 1. Abrir el proyecto en **IntelliJ IDEA**.
 2. Asegurarse de tener configurado **JDK 11** o superior.
 3. Cargar las dependencias Maven haciendo clic en **Reload All Maven Projects** sobre el archivo `pom.xml`.
-4. Ejecutar la clase principal: `co.edu.univalle.ui.MainFrame`.
+4. Verificar que haya conexión a internet (las cartas se obtienen en vivo desde la API).
+5. Ejecutar la clase principal: `co.edu.univalle.ui.MainFrame`.
+
+## Capturas de Pantalla
+
+### Pantalla inicial
+![Pantalla inicial](docs/screenshots/inicio.png)
+
+### Cartas cargadas
+![Cartas cargadas](docs/screenshots/cartas.png)
+
+### Duelo en curso con log de batalla
+![Duelo en curso](docs/screenshots/duelo.png)
+
+### Anuncio del ganador
+![Ganador](docs/screenshots/ganador.png)
