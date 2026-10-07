@@ -15,10 +15,10 @@ Mini-aplicación de escritorio en **Java Swing** que simula un duelo sencillo de
 
 La aplicación sigue una arquitectura por capas (`client`, `model`, `logic`, `ui`) basada en la Programación Orientada a Objetos (POO), con responsabilidades separadas:
 
-* **`co.edu.univalle.model.Card`**: Clase modelo que encapsula los atributos de la carta (nombre, ATK, DEF, URL de la imagen).
-* **`co.edu.univalle.client.YgoApiClient`**: Realiza las peticiones HTTP a `https://db.ygoprodeck.com/api/v7/randomcard.php` mediante `java.net.http.HttpClient` y parsea el JSON con `org.json`. Valida que la carta obtenida sea de tipo *Monster*; si no lo es, vuelve a solicitar otra.
-* **`co.edu.univalle.logic.Duel` y `BattleListener`**: `Duel` contiene las reglas y la lógica del enfrentamiento (turnos, comparación de stats y puntaje). Notifica a la UI mediante la interfaz `BattleListener` (`onTurn`, `onScoreChanged`, `onDuelEnded`), lo que desacopla la lógica de la interfaz.
-* **`co.edu.univalle.ui.MainFrame`**: Interfaz gráfica en Swing. Usa `ActionListener` en los botones **Iniciar duelo** y **Elegir carta**, y `SwingWorker` para cargar cartas e imágenes sin bloquear el hilo de la interfaz (`EDT`). Incluye un log de batalla desplazable (`JTextArea` + `JScrollPane`).
+* **`model.Card`**: Clase modelo que encapsula los atributos de la carta (nombre, ATK, DEF, URL de la imagen).
+* **`client.YgoApiClient`**: Realiza las peticiones HTTP a `https://db.ygoprodeck.com/api/v7/randomcard.php` mediante `java.net.http.HttpClient` y parsea el JSON con `org.json`. Valida que la carta obtenida sea de tipo *Monster*; si no lo es, vuelve a solicitar otra.
+* **`logic.Duel` y `BattleListener`**: `Duel` contiene las reglas y la lógica del enfrentamiento (turnos, comparación de stats y puntaje). Notifica a la UI mediante la interfaz `BattleListener` (`onTurn`, `onScoreChanged`, `onDuelEnded`), lo que desacopla la lógica de la interfaz.
+* **`ui.MainFrame`**: Interfaz gráfica en Swing. Usa `ActionListener` en los botones **Iniciar duelo** y **Elegir carta**, y `SwingWorker` para cargar cartas e imágenes sin bloquear el hilo de la interfaz (`EDT`). Incluye un log de batalla desplazable (`JTextArea` + `JScrollPane`).
 
 ### Validaciones y manejo de errores
 
@@ -55,14 +55,15 @@ La aplicación sigue una arquitectura por capas (`client`, `model`, `logic`, `ui
 
 ## Capturas de Pantalla
 
-### Pantalla inicial
-![Pantalla inicial](docs/screenshots/inicio.png)
 
 ### Cartas cargadas
-![Cartas cargadas](docs/screenshots/cartas.png)
+![Cartas cargadas](capturas/CargaCartas.png)
 
-### Duelo en curso con log de batalla
-![Duelo en curso](docs/screenshots/duelo.png)
+### Logs 
+![Duelo en curso](capturas/Logs.png)
 
 ### Anuncio del ganador
-![Ganador](docs/screenshots/ganador.png)
+![Ganador](capturas/Ganaste.png)
+
+### Anuncio del perdedor
+![Ganador](capturas/Perdiste.png)
