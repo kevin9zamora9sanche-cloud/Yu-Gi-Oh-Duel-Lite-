@@ -18,7 +18,9 @@ public class YgoApiClient {
     private final HttpClient client;
 
     public YgoApiClient() {
-        this.client = HttpClient.newBuilder().build();
+        this.client = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
     }
 
     /**
@@ -39,19 +41,26 @@ public class YgoApiClient {
                 if (response.statusCode() == 200) {
                     JSONObject json = new JSONObject(response.body());
 
-                    String type = json.optString("type", "");
-                    // Validar requisito: Debe ser tipo Monster
-                    if (type.toLowerCase().contains("monster")) {
-                        String name = json.getString("name");
-                        int atk = json.optInt("atk", 0);
-                        int def = json.optInt("def", 0);
+                    JSONArray data = json.getJSONArray("data");
 
-                        // Obtener la URL de la primera imagen disponible
-                        JSONArray cardImages = json.getJSONArray("card_images");
-                        String imageUrl = cardImages.getJSONObject(0).getString("image_url");
+                    for(int i = 0; i < data.length(); i++)
+                    {
+                        JSONObject cardJson = data.getJSONObject(i);
+                        String type = cardJson.optString("type", "");
+                        // Validar requisito: Debe ser tipo Monster
+                        if (type.toLowerCase().contains("monster")) {
+                            String name = cardJson.getString("name");
+                            int atk = cardJson.optInt("atk", 0);
+                            int def = cardJson.optInt("def", 0);
 
-                        return new Card(name, atk, def, imageUrl, type);
+                            // Obtener la URL de la primera imagen disponible
+                            JSONArray cardImages = cardJson.getJSONArray("card_images");
+                            String imageUrl = cardImages.getJSONObject(0).getString("image_url");
+
+                            return new Card(name, atk, def, imageUrl, type);
+                        }
                     }
+
                 }
             } catch (Exception e) {
                 System.err.println("Error al obtener la carta de la API: " + e.getMessage());
