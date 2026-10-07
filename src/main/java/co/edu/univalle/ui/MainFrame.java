@@ -1,273 +1,208 @@
 package co.edu.univalle.ui;
 
-// Importaciones del modelo, lógica y cliente de datos
-import co.edu.univalle.client.PokeApiService;
-import co.edu.univalle.logic.BattleEngine;
+import co.edu.univalle.client.YgoApiClient;
 import co.edu.univalle.logic.BattleListener;
-import co.edu.univalle.model.Pokemon;
+import co.edu.univalle.logic.Duel;
+import co.edu.univalle.model.Card;
 
-// Importaciones de Swing y AWT para la interfaz gráfica
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 
-/**
- * Ventana principal del simulador "Pokémon Stadium Lite".
- * Gestiona la interfaz de usuario y reacciona a los eventos del combate mediante BattleListener.
- */
 public class MainFrame extends JFrame implements BattleListener {
 
-    // =========================================================================
-    // ATRIBUTOS DE LA INTERFAZ (Enlazados con el diseñador Swing / MainFrame.form)
-    // =========================================================================
+    private JPanel mainPanel;
+    private JPanel cardsPanel;
+    private JPanel p1Panel;
+    private JPanel aiPanel;
 
-    // Paneles contenedores de la vista
-    private JPanel mainPanel;         // Panel raíz principal
-    private JPanel centerPanel;       // Contenedor de la zona central
-    private JPanel p1CenterPanel;     // Panel visual del Jugador 1
-    private JPanel p2CenterPanel;     // Panel visual del Jugador 2
-    private JPanel bottomPanel;       // Panel inferior para controles y logs
-    private JScrollPane scrollPaneLog; // Scroll para el área de texto de registro
+    private JLabel[] lblPlayerCardImages = new JLabel[3];
+    private JLabel[] lblPlayerCardStats = new JLabel[3];
+    private JButton[] btnSelectCards = new JButton[3];
 
-    // Componentes interactivos del Jugador 1
-    private JLabel lblStatsP1;        // Muestra las estadísticas (HP, ATK, DEF, SPD)
-    private JLabel lblImageP1;        // Muestra el sprite/imagen del Pokémon
-    private JProgressBar hpBarP1;     // Barra de vida (HP)
-    private JTextField txtP1;         // Campo de entrada de nombre o ID
-    private JButton btnLoadP1;        // Botón para cargar Pokémon por nombre/ID
-    private JButton btnRandomP1;      // Botón para cargar un Pokémon aleatorio
+    private JLabel[] lblAiCardImages = new JLabel[3];
+    private JLabel[] lblAiCardStats = new JLabel[3];
 
-    // Componentes interactivos del Jugador 2
-    private JLabel lblStatsP2;
-    private JLabel lblImageP2;
-    private JProgressBar hpBarP2;
-    private JTextField txtP2;
-    private JButton btnLoadP2;
-    private JButton btnRandomP2;
+    private JLabel lblScore;
+    private JButton btnStartDuel;
+    private JTextArea txtLog;
 
-    // Controles de batalla y registro de sucesos
-    private JButton btnFight;         // Botón para iniciar el combate
-    private JTextArea txtLog;         // Registro textual de los turnos y eventos
+    private YgoApiClient apiClient;
+    private List<Card> playerDeck = new ArrayList<>();
+    private List<Card> aiDeck = new ArrayList<>();
+    private Duel duel;
 
-    // =========================================================================
-    // SERVICIOS Y OBJETOS DEL DOMINIO
-    // =========================================================================
-    private PokeApiService apiService; // Servicio para consultar la PokéAPI en segundo plano
-    private Pokemon pokemon1;          // Objeto del Pokémon asignado al Jugador 1
-    private Pokemon pokemon2;          // Objeto del Pokémon asignado al Jugador 2
-
-    /**
-     * Constructor principal de la ventana.
-     * Configura el panel contenedor, inicializa el servicio API y enlaza los eventos.
-     */
     public MainFrame() {
-        setTitle("Pokémon Stadium Lite - Univalle");
-
-        // Validación de seguridad por si el diseñador visual no inicializa el panel raíz
-        if (mainPanel == null) {
-            mainPanel = new JPanel();
-        }
-        setContentPane(mainPanel);
+        setTitle("Yu-Gi-Oh! Duel Lite - Univalle");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        pack();                       // Ajusta el tamaño de la ventana al contenido
-        setLocationRelativeTo(null);   // Centra la ventana en la pantalla
+        setSize(1000, 700);
+        setLocationRelativeTo(null);
 
-        apiService = new PokeApiService();
-        setupEvents();                 // Registra los escuchadores de eventos
+        apiClient = new YgoApiClient();
+        initCustomUI();
+        cargarMazoInicial();
     }
 
-    /**
-     * Asigna las acciones (listeners) a los botones de la interfaz.
-     */
-    private void setupEvents() {
-        // Carga manual de Pokémon mediante el texto ingresado
-        btnLoadP1.addActionListener(e -> cargarPokemon1(txtP1.getText()));
-        btnLoadP2.addActionListener(e -> cargarPokemon2(txtP2.getText()));
+    private void initCustomUI() {
+        mainPanel = new JPanel(new BorderLayout(10, 10));
 
-        // Carga aleatoria utilizando IDs en el rango de la 1ª a la 8ª generación (1 a 898)
-        btnRandomP1.addActionListener(e -> {
-            int randomId = (int) (Math.random() * 898) + 1;
-            cargarPokemon1(String.valueOf(randomId));
-        });
+        // Panel de marcadores y control
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+        lblScore = new JLabel("Puntaje: Jugador 0 - 0 Máquina");
+        lblScore.setFont(new Font("SansSerif", Font.BOLD, 16));
+        btnStartDuel = new JButton("Cargar / Iniciar Duelo");
+        btnStartDuel.addActionListener(e -> cargarMazoInicial());
+        topPanel.add(lblScore);
+        topPanel.add(btnStartDuel);
 
-        btnRandomP2.addActionListener(e -> {
-            int randomId = (int) (Math.random() * 898) + 1;
-            cargarPokemon2(String.valueOf(randomId));
-        });
+        // Centro: Cartas
+        cardsPanel = new JPanel(new GridLayout(1, 2, 10, 10));
 
-        // Inicio del combate automático
-        btnFight.addActionListener(e -> {
-            if (pokemon1 != null && pokemon2 != null) {
-                // Deshabilitar controles interactivos durante la pelea para evitar interferencias
-                btnFight.setEnabled(false);
-                btnLoadP1.setEnabled(false);
-                btnRandomP1.setEnabled(false);
-                btnLoadP2.setEnabled(false);
-                btnRandomP2.setEnabled(false);
+        // Panel Jugador
+        p1Panel = new JPanel(new GridLayout(1, 3, 5, 5));
+        p1Panel.setBorder(BorderFactory.createTitledBorder(null, "Tus Cartas", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("SansSerif", Font.BOLD, 14)));
 
-                txtLog.setText(""); // Limpiar la consola de logs
+        for (int i = 0; i < 3; i++) {
+            JPanel cardContainer = new JPanel(new BorderLayout(5, 5));
+            lblPlayerCardStats[i] = new JLabel("Cargando...", SwingConstants.CENTER);
+            lblPlayerCardImages[i] = new JLabel("Sin imagen", SwingConstants.CENTER);
+            btnSelectCards[i] = new JButton("Jugar Carta");
+            btnSelectCards[i].setEnabled(false);
 
-                // Restablecer la vida de ambos combatientes al máximo antes de iniciar
-                pokemon1.setCurrentHp(pokemon1.getMaxHp());
-                pokemon2.setCurrentHp(pokemon2.getMaxHp());
-                actualizarBarra(hpBarP1, pokemon1);
-                actualizarBarra(hpBarP2, pokemon2);
+            int index = i;
+            btnSelectCards[i].addActionListener(e -> {
+                btnSelectCards[index].setEnabled(false);
+                if (duel != null) {
+                    duel.playTurn(index);
+                }
+            });
 
-                // Iniciar el motor de batalla en un hilo separado
-                BattleEngine engine = new BattleEngine(pokemon1, pokemon2, this);
-                engine.startBattle();
-            } else {
-                JOptionPane.showMessageDialog(this, "Cargue ambos Pokémon antes de iniciar la batalla.");
+            cardContainer.add(lblPlayerCardStats[i], BorderLayout.NORTH);
+            cardContainer.add(lblPlayerCardImages[i], BorderLayout.CENTER);
+            cardContainer.add(btnSelectCards[i], BorderLayout.SOUTH);
+            p1Panel.add(cardContainer);
+        }
+
+        // Panel Máquina
+        aiPanel = new JPanel(new GridLayout(1, 3, 5, 5));
+        aiPanel.setBorder(BorderFactory.createTitledBorder(null, "Cartas de la Máquina", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, new Font("SansSerif", Font.BOLD, 14)));
+
+        for (int i = 0; i < 3; i++) {
+            JPanel cardContainer = new JPanel(new BorderLayout(5, 5));
+            lblAiCardStats[i] = new JLabel("Oculto", SwingConstants.CENTER);
+            lblAiCardImages[i] = new JLabel("🎴 Oculta", SwingConstants.CENTER);
+
+            cardContainer.add(lblAiCardStats[i], BorderLayout.NORTH);
+            cardContainer.add(lblAiCardImages[i], BorderLayout.CENTER);
+            aiPanel.add(cardContainer);
+        }
+
+        cardsPanel.add(p1Panel);
+        cardsPanel.add(aiPanel);
+
+        // Parte inferior: Log de eventos
+        txtLog = new JTextArea(8, 80);
+        txtLog.setEditable(false);
+        JScrollPane scrollLog = new JScrollPane(txtLog);
+
+        mainPanel.add(topPanel, BorderLayout.NORTH);
+        mainPanel.add(cardsPanel, BorderLayout.CENTER);
+        mainPanel.add(scrollLog, BorderLayout.SOUTH);
+
+        setContentPane(mainPanel);
+    }
+
+    private void cargarMazoInicial() {
+        btnStartDuel.setEnabled(false);
+        txtLog.setText("Obteniendo cartas Monster desde YGOProDeck API...\n");
+
+        for (int i = 0; i < 3; i++) {
+            btnSelectCards[i].setEnabled(false);
+            lblPlayerCardStats[i].setText("Cargando...");
+            lblPlayerCardImages[i].setIcon(null);
+            lblPlayerCardImages[i].setText("Cargando...");
+
+            lblAiCardStats[i].setText("Oculto");
+            lblAiCardImages[i].setIcon(null);
+            lblAiCardImages[i].setText("🎴 Oculta");
+        }
+
+        // Hilo en segundo plano para no congelar la UI
+        new Thread(() -> {
+            playerDeck.clear();
+            aiDeck.clear();
+
+            for (int i = 0; i < 3; i++) {
+                Card pCard = apiClient.obtenerCartaMonsterAleatoria();
+                Card aiCard = apiClient.obtenerCartaMonsterAleatoria();
+
+                if (pCard != null) playerDeck.add(pCard);
+                if (aiCard != null) aiDeck.add(aiCard);
             }
-        });
+
+            SwingUtilities.invokeLater(() -> {
+                if (playerDeck.size() == 3 && aiDeck.size() == 3) {
+                    for (int i = 0; i < 3; i++) {
+                        mostrarCartaJugador(i, playerDeck.get(i));
+                        btnSelectCards[i].setEnabled(true);
+                    }
+                    txtLog.append("¡Cartas cargadas con éxito! Elige una carta para iniciar.\n");
+                    lblScore.setText("Puntaje: Jugador 0 - 0 Máquina");
+                    duel = new Duel(playerDeck, aiDeck, this);
+                } else {
+                    txtLog.append("Error al obtener cartas de la API. Intenta nuevamente.\n");
+                    JOptionPane.showMessageDialog(this, "Error de red al conectar con la API.");
+                }
+                btnStartDuel.setEnabled(true);
+            });
+        }).start();
     }
 
-    /**
-     * Habilita el botón de combate si ambos combatientes han sido cargados exitosamente.
-     */
-    private void verificarEstadoBotonPelea() {
-        if (pokemon1 != null && pokemon2 != null) {
-            btnFight.setEnabled(true);
-        }
-    }
-
-    /**
-     * Consulta el Pokémon del Jugador 1 en la API y actualiza la vista.
-     */
-    private void cargarPokemon1(String query) {
-        Pokemon p = apiService.obtenerPokemon(query);
-        if (p != null) {
-            pokemon1 = p;
-            txtP1.setText(p.getName());
-            actualizarUI(pokemon1, lblImageP1, lblStatsP1, hpBarP1);
-            txtLog.append("¡Cargado correctamente: " + p.getName().toUpperCase() + "!\n");
-            verificarEstadoBotonPelea();
-        } else {
-            JOptionPane.showMessageDialog(this, "No se encontró el Pokémon en la PokéAPI.");
-        }
-    }
-
-    /**
-     * Consulta el Pokémon del Jugador 2 en la API y actualiza la vista.
-     */
-    private void cargarPokemon2(String query) {
-        Pokemon p = apiService.obtenerPokemon(query);
-        if (p != null) {
-            pokemon2 = p;
-            txtP2.setText(p.getName());
-            actualizarUI(pokemon2, lblImageP2, lblStatsP2, hpBarP2);
-            txtLog.append("¡Cargado correctamente: " + p.getName().toUpperCase() + "!\n");
-            verificarEstadoBotonPelea();
-        } else {
-            JOptionPane.showMessageDialog(this, "No se encontró el Pokémon en la PokéAPI.");
-        }
-    }
-
-    /**
-     * Actualiza las etiquetas de texto e imagen de un Pokémon en la interfaz.
-     */
-    private void actualizarUI(Pokemon p, JLabel lblImage, JLabel lblStats, JProgressBar hpBar) {
-        // Formatear texto con código HTML para centrar y resaltar datos
-        lblStats.setText("<html><center><b>" + p.getName().toUpperCase() + " (" + p.getPrimaryType().toUpperCase() + ")</b><br>" +
-                "HP: " + p.getMaxHp() + " | ATK: " + p.getAttack() + " | DEF: " + p.getDefense() + " | SPD: " + p.getSpeed() + "</center></html>");
-
-        actualizarBarra(hpBar, p);
-
-        // Descarga y renderizado dinámico de la imagen del sprite desde URL
-        if (p.getSpriteUrl() != null && !p.getSpriteUrl().isEmpty()) {
+    private void mostrarCartaJugador(int index, Card card) {
+        lblPlayerCardStats[index].setText("<html><center><b>" + card.getName() + "</b><br>ATK: " + card.getAtk() + " | DEF: " + card.getDef() + "</center></html>");
+        new Thread(() -> {
             try {
-                URL urlImagen = new URL(p.getSpriteUrl());
-                ImageIcon icono = new ImageIcon(urlImagen);
-                Image image = icono.getImage().getScaledInstance(120, 120, Image.SCALE_SMOOTH);
-                lblImage.setText("");
-                lblImage.setIcon(new ImageIcon(image));
+                URL url = new URL(card.getImageUrl());
+                ImageIcon icon = new ImageIcon(url);
+                Image img = icon.getImage().getScaledInstance(100, 140, Image.SCALE_SMOOTH);
+                SwingUtilities.invokeLater(() -> {
+                    lblPlayerCardImages[index].setText("");
+                    lblPlayerCardImages[index].setIcon(new ImageIcon(img));
+                });
             } catch (Exception e) {
-                lblImage.setIcon(null);
-                lblImage.setText("Sin imagen");
+                SwingUtilities.invokeLater(() -> lblPlayerCardImages[index].setText("Sin imagen"));
             }
-        }
+        }).start();
     }
 
-    /**
-     * Configura y actualiza el valor visual de la barra de vida (JProgressBar).
-     */
-    private void actualizarBarra(JProgressBar hpBar, Pokemon p) {
-        hpBar.setMaximum(p.getMaxHp());
-        hpBar.setValue(p.getCurrentHp());
-        hpBar.setStringPainted(true);
-        hpBar.setString(p.getCurrentHp() + " / " + p.getMaxHp() + " HP");
-        hpBar.setForeground(new Color(46, 204, 113)); // Color verde
-    }
-
-    // =========================================================================
-    // MÉTODOS DE LA INTERFAZ BattleListener (Sincronización de hilos con AWT/Swing)
-    // =========================================================================
-
-    /**
-     * Recibe los mensajes del motor de batalla e imprime en la consola de texto.
-     */
     @Override
     public void onLog(String message) {
-        // SwingUtilities.invokeLater garantiza que los cambios a la UI se ejecuten en el Event Dispatch Thread (EDT)
         SwingUtilities.invokeLater(() -> txtLog.append(message + "\n"));
     }
 
-    /**
-     * Recibe la actualización del HP de un Pokémon tras recibir un ataque.
-     */
     @Override
-    public void onHpUpdated(Pokemon target, int currentHp, int maxHp) {
+    public void onTurn(String playerCard, String aiCard, String winner) {
+        // Notificación opcional de turno
+    }
+
+    @Override
+    public void onScoreChanged(int playerScore, int aiScore) {
+        SwingUtilities.invokeLater(() -> lblScore.setText("Puntaje: Jugador " + playerScore + " - " + aiScore + " Máquina"));
+    }
+
+    @Override
+    public void onDuelEnded(String winner) {
         SwingUtilities.invokeLater(() -> {
-            // Comparación por referencia de memoria (==) en lugar de nombre para diferenciar Pokémon idénticos
-            if (target == pokemon1) {
-                actualizarBarra(hpBarP1, pokemon1);
-            } else if (target == pokemon2) {
-                actualizarBarra(hpBarP2, pokemon2);
+            for (JButton btn : btnSelectCards) {
+                btn.setEnabled(false);
             }
         });
     }
-    /**
-     * Se invoca cuando finaliza el combate para volver a habilitar la interfaz.
-     */
-    @Override
-    public void onBattleEnded(String winnerName) {
-        SwingUtilities.invokeLater(() -> {
-            btnLoadP1.setEnabled(true);
-            btnRandomP1.setEnabled(true);
-            btnLoadP2.setEnabled(true);
-            btnRandomP2.setEnabled(true);
-            btnFight.setEnabled(true);
-        });
-    }
-
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            MainFrame frame = new MainFrame();
-            frame.setVisible(true);
-        });
-    }
-
-    {
-// GUI initializer generated by IntelliJ IDEA GUI Designer
-// >>> IMPORTANT!! <<<
-// DO NOT EDIT OR ADD ANY CODE HERE!
-        $$$setupUI$$$();
-    }
-
-    /**
-     * Method generated by IntelliJ IDEA GUI Designer
-     * >>> IMPORTANT!! <<<
-     * DO NOT edit this method OR call it in your code!
-     *
-     * @noinspection ALL
-     */
-    private void $$$setupUI$$$() {
-        // ... (borrar todo el contenido de este método)
-    }
-
-    public JComponent $$$getRootComponent$$$() {
-        return mainPanel;
+        SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
     }
 }

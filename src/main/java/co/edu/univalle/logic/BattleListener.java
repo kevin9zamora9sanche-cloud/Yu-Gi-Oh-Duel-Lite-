@@ -1,10 +1,11 @@
 package co.edu.univalle.logic;
 
-import co.edu.univalle.model.Pokemon;
-
+/**
+ * Escuchador de eventos del duelo para desacoplar la lógica de la UI.
+ */
 public interface BattleListener {
     void onLog(String message);
-    void onHpUpdated(Pokemon target, int currentHp, int maxHp); // <-- Recibe el objeto
-    void onBattleEnded(String winnerName);
-    //void onTurn(String attacker, String defender, int damage, boolean critical, double modifier);
+    void onTurn(String playerCard, String aiCard, String winner);
+    void onScoreChanged(int playerScore, int aiScore);
+    void onDuelEnded(String winner);
 }
