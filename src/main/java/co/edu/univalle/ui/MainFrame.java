@@ -150,6 +150,18 @@ public class MainFrame extends JFrame implements BattleListener {
 
     @Override
     public void onTurn(String playerCard, String aiCard, String winner) {
+        // Se muestra directamente (Duel lo invoca desde el botón, en el hilo de Swing) para que este
+        // diálogo modal termine antes de que aparezca el de fin del duelo.
+        if (winner.startsWith("Jugador")) {
+            JOptionPane.showMessageDialog(this, playerCard + " venció a " + aiCard,
+                    "¡Ganaste la ronda!", JOptionPane.INFORMATION_MESSAGE);
+        } else if (winner.startsWith("Máquina")) {
+            JOptionPane.showMessageDialog(this, aiCard + " venció a " + playerCard,
+                    "Perdiste la ronda", JOptionPane.ERROR_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, playerCard + " y " + aiCard + " quedaron iguales",
+                    "Empate", JOptionPane.WARNING_MESSAGE);
+        }
     }
 
     @Override
@@ -162,6 +174,15 @@ public class MainFrame extends JFrame implements BattleListener {
         SwingUtilities.invokeLater(() -> {
             for (JButton btn : playerButtons) {
                 btn.setEnabled(false);
+            }
+
+            switch (winner) {
+                case "JUGADOR" -> JOptionPane.showMessageDialog(this, "¡Ganaste el duelo!\n" + lblScore.getText(),
+                        "Fin del duelo", JOptionPane.INFORMATION_MESSAGE);
+                case "MÁQUINA" -> JOptionPane.showMessageDialog(this, "Perdiste el duelo.\n" + lblScore.getText(),
+                        "Fin del duelo", JOptionPane.ERROR_MESSAGE);
+                default -> JOptionPane.showMessageDialog(this, "El duelo terminó en empate.\n" + lblScore.getText(),
+                        "Fin del duelo", JOptionPane.WARNING_MESSAGE);
             }
         });
     }
